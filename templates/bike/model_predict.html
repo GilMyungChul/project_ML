@@ -1,0 +1,151 @@
+{% load static %}
+<!doctype html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>따릉이 ML — 학습 & 예측</title>
+    <link rel="stylesheet" href="{% static 'css/base.css' %}">
+</head>
+<body id="predict">
+    {% include "header.html" %}
+    <div class="container">
+        <h1>서울시 따릉이 수요 — 학습 & 예측</h1>
+
+        {% if error %}<p class="warn">{{ error }}</p>{% endif %}
+
+        {% if model_label %}
+        <!-- <p><strong>선택한 모델 - </strong> {{ model_label|striptags }} <span style="color:#888;">({{ model_key }})</span></p> -->
+        <p><strong>선택한 모델 - </strong> {{ model_label|striptags }} </p>
+        {% endif %}
+
+        <div class="card">
+        <form method="post" action="{% url 'bike:ml_train_predict' %}">
+            {% csrf_token %}
+            <input type="hidden" name="model" value="{{ model_key }}">
+
+            {% if model_key == "ridge_dual" %}
+            <!-- ✅ Ridge일 때만 옵션 노출 -->
+            <div class="flex">
+            <div>
+                <label for="id_alpha">Ridge α</label>
+                {{ form.alpha }}
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;margin-top:28px">
+                {{ form.drop_leak }}
+                <label for="id_drop_leak" style="font-weight: 600;margin-bottom: 0;">누수 방지 (rental/return 제외)</label>
+            </div>
+            </div>
+        {% else %}
+
+            <!-- ✅ CatBoost / RF: 옵션 숨김(버튼만). 폼 유효성 통과용 hidden 전송 -->
+            <input type="hidden" name="alpha" value="{{ form.alpha.value|default:1.0 }}">
+            <input type="hidden" name="drop_leak" value="on">
+        {% endif %}
+            <div style="margin-top:12px">
+            <button type="submit">학습 + 예측 실행</button>
+            </div>
+            <p style="margin-top:8px;color:#475569;font-size:13px">
+            23년(train) / 24년(test)로 DB에서 자동 분리. 실행 후 <code>model.pkl</code> 및 <code>media/pred_2024.csv</code> 저장됨.
+            </p>
+        </form>
+        </div>
+
+        {% if metrics %}
+        <!-- 성능 지표 -->
+        <div class="card" style="margin-bottom:18px;">
+            <h2>성능 지표 - 대여</h2>
+            <div class="kpis">
+                <div class="kpi"><div class="lab">Train RMSE</div><b>{{ metrics.rent.rmse_tr|default:"-"|floatformat:4 }}</b></div>
+                <div class="kpi"><div class="lab">Train MAE</div><b>{{ metrics.rent.mae_tr|default:"-"|floatformat:4 }}</b></div>
+                <div class="kpi"><div class="lab">Train R²</div><b>{{ metrics.rent.r2_tr|default:"-"|floatformat:4 }}</b></div>
+                <div class="kpi"><div class="lab">Test RMSE</div><b>{{ metrics.rent.rmse_te|default:"-"|floatformat:4 }}</b></div>
+                <div class="kpi"><div class="lab">Test MAE</div><b>{{ metrics.rent.mae_te|default:"-"|floatformat:4 }}</b></div>
+                <div class="kpi"><div class="lab">Test R²</div><b>{{ metrics.rent.r2_te|default:"-"|floatformat:4 }}</b></div>
+            </div>
+            <p class="feature_info">사용 피처: {{ metrics.rent.features|join:", " }}</p>
+            <p class="models_info">저장 모델: randomforest.pkl</p>
+
+
+            {% if saved_csv %} <a class="downBtn" href="{{ saved_csv }}">pred_rf.csv 다운로드</a>{% endif %}
+
+        </div>
+
+        <!-- 성능 지표 -->
+        <div class="card" style="margin-bottom:18px;">
+            <h2>성능 지표 - 반납</h2>
+            <div class="kpis">
+                <div class="kpi"><div class="lab">Train RMSE</div><b>{{ metrics.return.rmse_tr|default:"-"|floatformat:4 }}</b></div>
+                <div class="kpi"><div class="lab">Train MAE</div><b>{{ metrics.return.mae_tr|default:"-"|floatformat:4 }}</b></div>
+                <div class="kpi"><div class="lab">Train R²</div><b>{{ metrics.return.r2_tr|default:"-"|floatformat:4 }}</b></div>
+                <div class="kpi"><div class="lab">Test RMSE</div><b>{{ metrics.return.rmse_te|default:"-"|floatformat:4 }}</b></div>
+                <div class="kpi"><div class="lab">Test MAE</div><b>{{ metrics.return.mae_te|default:"-"|floatformat:4 }}</b></div>
+                <div class="kpi"><div class="lab">Test R²</div><b>{{ metrics.return.r2_te|default:"-"|floatformat:4 }}</b></div>
+            </div>
+            <p class="feature_info">사용 피처: {{ metrics.return.features|join:", " }}</p>
+            <p class="models_info">저장 모델: randomforest.pkl</p>
+
+            
+            {% if saved_csv %} <a class="downBtn" href="{{ saved_csv }}">pred_rf.csv 다운로드</a>{% endif %}
+
+        </div>
+        {% endif %}
+
+        {% if error %}
+            <p class="warn">{{ error }}</p>
+        {% else %}
+
+        <form id="search-form" class="card">
+            <label for="loc" class="loc"></label>
+            <input id="loc" name="loc" type="text" placeholder="지점 선택 [EX) 강남역 1번]" value="{{ request.GET.loc }}">
+            <button class="btn" type="submit">적용</button>
+            <button class="btn ghost all_view">전체</button>
+        </form>
+        {% endif %}
+
+        <div class="card">
+            {% if show_result %}
+            <div class="flex" style="margin-bottom:8px">
+                <span class="badge">미리보기 <span id="count">{{ rows|length|default:0 }}</span> / 전체 {{ total_rows|default:0 }} 행</span>
+            </div>
+            <div id="result-list">
+                {% include "bike/_predict_table.html" %}
+            </div>
+            {% else %}
+                <p style="color:#475569">아직 결과가 없습니다. 위에서 학습을 먼저 실행해주세요.</p>
+            {% endif %}
+        </div>
+    </div>
+
+<script>
+    document.querySelector("#search-form").addEventListener("submit", function(e) {
+        e.preventDefault();
+        const loc = document.querySelector("#loc").value;
+
+        searchFun(loc)
+    });
+
+    document.querySelector(".all_view").addEventListener("click", function(e) {
+        e.preventDefault();
+        document.querySelector("#loc").value = ""
+        let loc = document.querySelector("#loc").value;
+
+        searchFun(loc)
+    });
+
+    function searchFun(loc){
+        fetch("{% url 'bike:ml_home' %}?loc=" + encodeURIComponent(loc), {
+            headers: {
+                "X-Requested-With": "XMLHttpRequest"
+            }
+        })
+        .then(res => res.text())
+        .then(html => {
+            document.querySelector("#result-list").innerHTML = html;
+            document.querySelector("#count").textContent =
+                document.querySelectorAll("#result-list tbody tr").length;
+        });
+    }
+</script>
+
+</body>
+</html>

@@ -1,0 +1,12 @@
+<header>
+    <nav>
+        <p class="header_logo">달려라 왕바우</p>
+        <ul>
+            <li><a href="{% url 'main' %}">HOME</a></li>
+            <li><a href="{% url 'bike:ml_select' %}">학습</a></li>
+            <li><a href="{% url 'map:bike_map' %}">지도</a></li>
+            <li><a href="{% url 'bike:forecast_select' %}">미래 예측</a></li>
+            <li><a href="{% url 'prediction:predict_map' %}">예측 지도</a></li>
+        </ul>
+    </nav>
+</header>

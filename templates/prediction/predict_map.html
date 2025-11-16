@@ -1,0 +1,94 @@
+{% load static %}
+<!DOCTYPE html>
+<html>
+<head>
+    <title>서울 자전거 예측 지도</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        #map { height: 800px; width: 100%; }
+        .leaflet-default-icon-path {
+            background-image: url('https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png');
+        }
+        .body_map header{position: relative;}
+        .map_wrap{padding: 24px;}
+    </style>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.4.1/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.4.1/MarkerCluster.Default.css" />
+    <link rel="stylesheet" href="{% static 'css/base.css' %}">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.4.1/leaflet.markercluster.js"></script>
+    {{ predict_data | json_script:"predict_data" }}
+    <script>
+        const stationToFocus = "{{ station_to_focus|escapejs }}";
+    </script>
+</head>
+<body class="body_map">
+    {% include "header.html" %}
+
+    <div class="map_wrap">
+        <h2>서울 공공자전거 예측 현황</h2>
+        <div id="map"></div>
+    </div>
+    
+    <script>
+        var markerMap = {};
+        var predict_data_raw = document.getElementById('predict_data').textContent;
+        var predict_data = JSON.parse(predict_data_raw);
+
+        var map = L.map('map').setView([37.5665, 126.9780], 12);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+
+        var smallIcon = new L.Icon({
+            iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+            iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+            shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+            iconSize: [18, 29],
+            iconAnchor: [9, 29],
+            popupAnchor: [1, -24],
+            shadowSize: [29, 29]
+        });
+        
+        var markers = L.markerClusterGroup();
+        // 마커 저장소
+        if (predict_data && predict_data.length > 0) {
+        predict_data.forEach(function(station) {
+            var lat = parseFloat(station.stationLatitude);
+            var lng = parseFloat(station.stationLongitude);
+            var name = station.stationName;
+
+            var popupContent = `
+                <b>${name}</b><br>
+                예측 순변화량: ${station.net_change}<br>
+                예측 반납 수량: ${station.return_count}<br>
+                예측 대여 수량: ${station.rental_count}
+            `;
+
+            var marker = L.marker([lat, lng], {icon: smallIcon}).bindPopup(popupContent);
+            markerMap[name] = marker;
+            markers.addLayer(marker);
+        });
+
+            map.addLayer(markers);
+            focusStationIfRequested(); // 여기에 실행
+        }
+
+        function focusStationIfRequested() {
+            if (!stationToFocus) return;
+
+            const name = stationToFocus.trim();
+            const marker = markerMap[name];
+
+            if (marker) {
+                const latlng = marker.getLatLng();
+                map.setView(latlng, 17);
+                marker.openPopup();
+            } else {
+                console.warn("해당 이름의 마커를 찾을 수 없음:", name);
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,149 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>따릉이 ML — 학습 & 예측</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <link rel="stylesheet" href="{% static 'css/base.css' %}">
+  <style>
+    .sub{color:var(--muted);margin:-8px 0 28px}
+    .card{background:#fff;border:1px solid #e5e7eb;border-radius:14px;box-shadow:0 8px 24px rgba(0,0,0,.04);padding:20px}
+    .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    .grid{display:grid;gap:16px} @media(min-width:980px){.grid-2{grid-template-columns:1fr 1fr}}
+    input[type="text"],select{width:100%;padding:12px 14px;border:1px solid #e5e7eb;border-radius:10px;font-size:15px;outline:none}
+    .chk{display:inline-flex;gap:8px;align-items:center;margin-left:10px;font-weight:600}
+    .btn{padding:10px 16px;border:0;background:#333;color:#fff;border-radius:8px;cursor:pointer;margin-top:12px;}
+    .btn.ghost{background:#fff;color:var(--ink);border:1px solid #e5e7eb}
+    .hint{color:var(--muted);font-size:13px;margin-top:8px}
+    .chips{display:flex;gap:8px;flex-wrap:wrap}
+    .chip{background:var(--chip);color:var(--chip-ink);font-weight:700;border-radius:999px;padding:6px 10px;font-size:12px}
+    .toolbar{display:flex;gap:10px;align-items:center;justify-content:space-between;margin-bottom:8px}
+    .filter{display:flex;gap:8px;align-items:center}
+    .filter input{width:260px}
+    .table-wrap{position:relative}
+    .download{position:absolute;right:10px;top:-40px}
+    table{width:100%;border-collapse:collapse;background:#fff}
+    thead th{position:sticky;top:0;background:#f3f4f6;border-bottom:1px solid #e5e7eb;padding:10px 12px;text-align:left;font-size:13px;color:#4b5563}
+    tbody td{border-bottom:1px solid #f1f5f9;padding:10px 12px;font-size:13px}
+    .scroll{max-height:420px;overflow:auto;border:1px solid #e5e7eb;border-radius:10px}
+    .err{color:#dc2626;font-weight:700}
+  </style>
+</head>
+<body>
+    {% include "header.html" %}
+    <div class="wrap">
+        <h1>Machine Learning — 학습 & 예측</h1>
+
+        <!-- 실행 폼 -->
+        <div class="card">
+            <form method="POST">
+            {% csrf_token %}
+            <div class="row" style="align-items:flex-end;">
+                <div style="flex:1 1 340px;min-width:260px;">
+                    <label>테스트 파일명</label>
+                    <input type="text" name="test" value="{{ test|default:'test_24.csv' }}" placeholder="예: test_24.csv" required />
+                </div>
+                <div style="flex:1 1 280px;min-width:220px;">
+                    <label>모델 선택 (.pkl)</label>
+                    <select name="model">
+                    <option value="RandomForest" {% if model_name == 'RandomForest' %}selected{% endif %}>RandomForest</option>
+                    <option value="XGBoost"      {% if model_name == 'XGBoost' %}selected{% endif %}>XGBoost</option>
+                    <option value="LightGBM"     {% if model_name == 'LightGBM' %}selected{% endif %}>LightGBM</option>
+                    <option value="CatBoost"     {% if model_name == 'CatBoost' %}selected{% endif %}>CatBoost</option>
+                    </select>
+                </div>
+                <label class="chk">
+                    <input type="checkbox" name="use_log" {% if use_log|default:True %}checked{% endif %} />
+                    로그 변환 사용
+                </label>
+            </div>
+            <button class="btn" type="submit" sty>학습 + 예측 실행</button>
+            </form>
+            <p class="hint">23년(train) / 24년(test)로 자동 분리해 사용. 실행 후 <code>model.pkl</code> 및 <code>pred_2024.csv</code> 저장 가능.</p>
+        </div>
+
+        {% if error %}
+            <div class="card"><span class="err">오류:</span> {{ error }}</div>
+        {% endif %}
+
+        {% if submitted %}
+            <!-- 성능 지표 카드 -->
+            <div class="card">
+            <h2>성능 지표</h2>
+            <div class="row" style="justify-content:space-between;">
+                <div class="chips">
+                <span class="chip">{{ model_name|default:"모델 미지정" }}</span>
+                {% if saved_csv %}<span class="chip">CSV 저장됨</span>{% endif %}
+                </div>
+            </div>
+            <div class="kpis">
+                <div class="kpi"><div class="muted">Train RMSE</div><b>{{ metrics.Train_RMSE|default:"-"|floatformat:4 }}</b></div>
+                <div class="kpi"><div class="muted">Train MAE</div><b>{{ metrics.Train_MAE|default:"-"|floatformat:4 }}</b></div>
+                <div class="kpi"><div class="muted">Train R²</div><b>{{ metrics.Train_R2|default:"-"|floatformat:4 }}</b></div>
+                <div class="kpi"><div class="muted">Test RMSE</div><b>{{ metrics.Test_RMSE|default:"-"|floatformat:4 }}</b></div>
+                <div class="kpi"><div class="muted">Test MAE</div><b>{{ metrics.Test_MAE|default:"-"|floatformat:4 }}</b></div>
+                <div class="kpi"><div class="muted">Test R²</div><b>{{ metrics.Test_R2|default:"-"|floatformat:4 }}</b></div>
+            </div>
+            <p class="hint">사용 피처: {{ metrics.features|default:"-" }} / 저장 모델: {{ metrics.model_path|default:"model.pkl" }}</p>
+            </div>
+
+            <!-- 중요도 / 프리뷰 2단 -->
+            <div class="grid grid-2">
+            <div class="card">
+                <div class="toolbar"><h3 style="margin:0">Feature Importance (Top10)</h3></div>
+                <div class="scroll">
+                <table>
+                    <thead><tr><th>Feature</th><th>Importance</th></tr></thead>
+                    <tbody>
+                    {% if feature_importance %}
+                        {% for row in feature_importance %}
+                        <tr><td>{{ row.feature }}</td><td>{{ row.importance }}</td></tr>
+                        {% endfor %}
+                    {% else %}
+                        <tr><td colspan="2">데이터 없음</td></tr>
+                    {% endif %}
+                    </tbody>
+                </table>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="toolbar">
+                <h3 style="margin:0">미리보기 100</h3>
+                {% if saved_csv %}<a class="btn ghost download" href="{{ saved_csv }}">pred_2024.csv 다운로드</a>{% endif %}
+                </div>
+                <div class="table-wrap">
+                <div class="scroll">
+                    <table>
+                    <thead>
+                        {% if preview.0 %}
+                        <tr>
+                            {% for c in preview.0.keys %}
+                            <th>{{ c }}</th>
+                            {% endfor %}
+                        </tr>
+                        {% endif %}
+                    </thead>
+                    <tbody>
+                        {% if preview %}
+                        {% for row in preview|slice:":100" %}
+                            <tr>
+                            {% for v in row.values %}
+                                <td>{{ v }}</td>
+                            {% endfor %}
+                            </tr>
+                        {% endfor %}
+                        {% else %}
+                        <tr><td>데이터 없음</td></tr>
+                        {% endif %}
+                    </tbody>
+                    </table>
+                </div>
+                </div>
+            </div>
+            </div>
+        {% endif %}
+    </div>
+</body>
+</html>

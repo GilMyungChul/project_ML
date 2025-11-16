@@ -1,0 +1,31 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>메인</title>
+
+    <link rel="stylesheet" href="{% static 'css/base.css' %}">
+    <style>
+        video {position: fixed; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover;}
+        .main_wrap {background-image: url('{% static "img/main_visual.png" %}');}
+    </style>
+</head>
+<body id="main">
+    <div class="main_wrap">
+        <div class="content_wrap">
+            <section>
+                <h1>서울시 따릉이 수요량 최적화<span>머신러닝을 활용한 학습 및 예측</span></h1>
+                <div class="btn_wrap">
+                    <a href="{% url 'bike:ml_select' %}"> 학습</a>
+					<a href="{% url 'map:bike_map' %}"> 지도</a>
+                    <!-- <a href="{% url 'bike:ml_home' %}"> 예측하기</a> -->
+					<a href="{% url 'bike:forecast_select' %}"> 미래 예측</a>
+                    <a href="{% url 'prediction:predict_map' %}">예측 지도</a>
+                </div>
+            </section>
+        </div>
+    </div>
+
+</body>
+</html>

@@ -1,0 +1,46 @@
+{% if rows %}
+<div style="max-height:60vh;overflow:auto">
+    <table class="result_tb">
+        <thead>
+            <tr>
+                <th>대여일자</th>
+                <th>대여장소</th>
+                <th>대여건수</th>
+                <th>예측 대여건수</th>
+                <th>반납건수</th>
+                <th>예측 반납건수</th>
+                <th>순변화량</th>
+                <th>예측 순변화량</th>
+                <th>예측 상태</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for r in rows %}
+            <tr>
+                <td>{{ r.date }}</td>
+                <td><a href="/predict?station={{ r.location_name|urlencode }}" target="_blank">{{ r.location_name }}</a></td>
+                <td>{{ r.rental_count }}</td>
+                <td>{{ r.pred_rental_count|floatformat:3 }}</td>
+                <td>{{ r.return_count }}</td>
+                <td>{{ r.pred_return_count|floatformat:3 }}</td>
+                <td>{{ r.net_change }}</td>
+                <td>{{ r.pred_net_change|floatformat:3 }}</td>
+                <td>
+                    {% with v=r.pred_net_change %}
+                        {% if v >= 11 %}
+                            <span class="badge" style="background:#f65a5a;color:#fff;margin-left:6px">과잉</span>
+                        {% elif v <= -11 %}
+                            <span class="badge" style="background:#828afd;color:#fff;margin-left:6px">부족</span>
+                        {% else %}
+                            <span class="badge" style="background:#333;color:#fff;margin-left:6px">적절</span>
+                        {% endif %}
+                    {% endwith %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<p style="color:#475569">결과가 없습니다.</p>
+{% endif %}

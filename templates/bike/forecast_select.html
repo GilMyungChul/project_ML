@@ -1,0 +1,81 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <title>미래 예측 — 모델 선택</title>
+  <link rel="stylesheet" href="{% static 'css/base.css' %}">
+  <style>
+    .select-inner{width:min(1000px,92vw);display:grid;gap:28px;justify-items:center;}
+    .headline{font-family:"Jua",system-ui,-apple-system,Arial,sans-serif;font-size:clamp(22px,3.6vw,34px);color:#1e3a8a;letter-spacing:.3px;text-align:center;}
+    .subline{color:#555;font-size:14px;text-align:center;margin-top:-6px;}
+
+    .radial{position:relative;width:min(560px,86vw);height:min(560px,86vw);margin:6px auto 0;}
+    .radial svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;}
+    .center-dot{position:absolute;left:50%;top:50%;width:12px;height:12px;transform:translate(-50%,-50%);
+      background:#1e3a8a;border-radius:50%;box-shadow:0 0 0 6px rgba(30,58,138,.08);}
+    .model-circle{position:absolute;width:160px;height:160px;border-radius:999px;background:#fff;border:2px solid #e6eaf5;
+      box-shadow:0 8px 18px rgba(30,58,138,.08);display:flex;align-items:center;justify-content:center;text-align:center;
+      padding:16px;cursor:pointer;transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease;
+      user-select:none;font-family:"Jua",system-ui,-apple-system,Arial,sans-serif;color:#1e3a8a;font-size:18px;line-height:1.25;
+      background-image:radial-gradient(ellipse at top, rgba(30,58,138,.05), transparent 50%);}
+    .model-circle:hover,.model-circle:focus-visible{transform:translateY(-6px) scale(1.04);box-shadow:0 14px 28px rgba(30,58,138,.16);border-color:#cfd8f3;outline:none;}
+    .model-circle:active{transform:translateY(0) scale(1.0);box-shadow:0 6px 14px rgba(30,58,138,.14);}
+    @media (max-width:640px){.model-circle{width:130px;height:130px;font-size:16px}}
+  </style>
+</head>
+<body>
+    {% include "header.html" %}
+    <div class="select-wrap">
+        <div class="select-inner">
+            <h1 class="headline">미래 예측에 사용할 모델을 선택하세요</h1>
+            <p class="subline">원을 클릭하면 업로드 화면으로 이동합니다.</p>
+
+            <form id="modelForm" method="get" action="{% url 'bike:forecast_home' %}">
+            {% csrf_token %}
+            <input type="hidden" name="model" id="modelInput" value="">
+
+            <div class="radial" id="radial">
+                <div class="center-dot" aria-hidden="true"></div>
+                <svg id="radialLines" viewBox="0 0 100 100" preserveAspectRatio="none"></svg>
+
+                {% for value, label in form.model.field.choices %}
+                <button type="button" class="model-circle" data-model="{{ value }}" title="{{ label|striptags }}">
+                    {{ label|safe }}
+                </button>
+                {% endfor %}
+            </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // 제출
+        document.querySelectorAll(".model-circle").forEach(btn=>{
+            btn.addEventListener("click", ()=>{
+            document.getElementById("modelInput").value = btn.getAttribute("data-model");
+            document.getElementById("modelForm").submit();
+            });
+        });
+
+        // 방사형 배치 + 선
+        function layoutRadial(){
+            const wrap=document.getElementById("radial"), svg=document.getElementById("radialLines");
+            const nodes=[...wrap.querySelectorAll(".model-circle")]; if(!wrap||nodes.length===0) return;
+            const W=wrap.clientWidth,H=wrap.clientHeight,cx=W/2,cy=H/2,rBtn=nodes[0].offsetWidth/2, R=Math.min(W,H)/2 - rBtn - 8;
+            const N=nodes.length, startDeg=-90, step=360/N;
+            const px=(x,y)=>({x:(x/W)*100,y:(y/H)*100}); svg.innerHTML="";
+            nodes.forEach((node,i)=>{
+            const rad=(startDeg+step*i)*Math.PI/180, x=cx+R*Math.cos(rad), y=cy+R*Math.sin(rad);
+            node.style.left=(x-rBtn)+"px"; node.style.top=(y-rBtn)+"px";
+            const p1=px(cx,cy), p2=px(x,y); const line=document.createElementNS("http://www.w3.org/2000/svg","line");
+            line.setAttribute("x1",p1.x); line.setAttribute("y1",p1.y); line.setAttribute("x2",p2.x); line.setAttribute("y2",p2.y);
+            line.setAttribute("stroke","#cfd8f3"); line.setAttribute("stroke-width","0.8"); line.setAttribute("vector-effect","non-scaling-stroke");
+            svg.appendChild(line);
+            });
+        }
+        window.addEventListener("load",layoutRadial);
+        window.addEventListener("resize",()=>{clearTimeout(window.__radialT);window.__radialT=setTimeout(layoutRadial,120);});
+    </script>
+</body>
+</html>

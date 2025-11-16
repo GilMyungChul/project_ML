@@ -1,0 +1,99 @@
+{% load static %}
+<!doctype html>
+<html lang="ko">
+<head>
+    <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>미래 예측 — 업로드 & 실행</title>
+    <link rel="stylesheet" href="{% static 'css/base.css' %}">
+</head>
+<body id="predict">
+    {% include "header.html" %}
+    <div class="container">
+        <h1>미래 예측 — 업로드 & 실행</h1>
+
+        {% if error %}<p class="warn">{{ error }}</p>{% endif %}
+        {% if model_label %}
+            <p><strong>선택한 모델:</strong> {{ model_label }} <span style="color:#888;">({{ model_key }})</span></p>
+        {% endif %}
+
+        <div class="card">
+            <form method="post" enctype="multipart/form-data" action="{% url 'bike:forecast_home' %}">
+                {% csrf_token %}
+                <input type="hidden" name="model" value="{{ model_key }}">
+                <div style="display:flex;gap:12px;align-items:center" class="forcast_form">
+                <label id="file" for="id_file" class="btn" style="margin-bottom:0;">파일 선택</label>
+                <span id="file-name">선택된 파일 없음</span>
+                {{ form.file }}
+                <button type="submit" style="margin-left: auto;">예측 실행</button>
+                </div>
+                <p style="margin-top:8px;color:#475569;font-size:13px">
+                CSV에 <code>date, location_name, avg_temp, daily_rainfall</code> 열이 필요합니다.
+                </p>
+            </form>
+        </div>
+
+        <div class="card">
+        <div class="flex" style="margin-bottom:8px">
+            <span class="badge">미리보기 {{ rows|length|default:0 }} / 전체 {{ total_rows|default:0 }} 행</span>
+            {% if pred_csv_url %}<a href="{{ pred_csv_url }}" download>예측 결과 CSV 다운로드</a>{% endif %}
+        </div>
+
+        {% if rows %}
+        <div style="max-height:60vh;overflow:auto">
+        <table>
+            <thead>
+            <tr>
+                <th>일시</th>
+                <th>대여소명</th>
+                <th>예측 대여건수</th>
+                <th>예측 반납건수</th>
+                <th>예측 순변화량</th>
+                <th>상태</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for r in rows %}
+                <tr>
+                <td>{{ r.date }}</td>
+                <td>{{ r.location_name }}</td>
+                <td>{{ r.pred_rental_count|floatformat:3 }}</td>
+                <td>{{ r.pred_return_count|floatformat:3 }}</td>
+                <td>{{ r.pred_net_change|floatformat:3 }}</td>
+                <td>
+                    {% with v=r.pred_net_change %}
+                    {% if v >= 3 %}
+                        <span class="badge" style="background:#5700fa;color:#333;margin-left:6px">과잉</span>
+                    {% elif v <= -3 %}
+                        <span class="badge" style="background:#ff2424;color:#333;margin-left:6px">부족</span>
+                    {% else %}
+                        <span class="badge" style="background:#333;color:#fff;margin-left:6px">적절</span>
+                    {% endif %}
+                    {% endwith %}
+                </td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        </div>
+        {% if saved_model %}<p style="font-size:13px;color:#475569;margin-top:8px">사용 모델: {{ saved_model }}</p>{% endif %}
+        {% else %}
+            <p style="color:#475569">CSV를 업로드하고 “예측 실행”을 눌러 주세요.</p>
+        {% endif %}
+        </div>
+    </div>
+
+<script>
+    const fileInput = document.getElementById('id_file');
+    const fileNameSpan = document.getElementById('file-name');
+
+    fileInput.addEventListener('change', (event) => {
+    const file = event.target.files[0];
+    if (file) {
+        fileNameSpan.textContent = file.name;
+    } else {
+        fileNameSpan.textContent = '선택된 파일 없음';
+    }
+    });
+</script>
+</body>
+</html>

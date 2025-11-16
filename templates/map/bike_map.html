@@ -1,0 +1,79 @@
+{% load static %}
+<!DOCTYPE html>
+<html>
+<head>
+    <title>서울 자전거 지도</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <style>
+        #map { height: 800px; width: 100%; }
+        /* 핀 크기를 줄이기 위한 CSS */
+        .leaflet-default-icon-path {
+            background-image: url('https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png');
+        }
+        .body_map header{position: relative;}
+        .map_wrap{padding: 24px;}
+    </style>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.4.1/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.4.1/MarkerCluster.Default.css" />
+    <link rel="stylesheet" href="{% static 'css/base.css' %}">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.4.1/leaflet.markercluster.js"></script>
+    {{ bike_data | json_script:"bike_data" }}
+</head>
+<body class="body_map">
+    {% include "header.html" %}
+    <div class="map_wrap">
+        <h2>서울 공공자전거 실시간 현황</h2>
+        <div id="map"></div>
+    </div>
+    
+    <script>
+        var bike_data_raw = document.getElementById('bike_data').textContent;
+        var bike_data = JSON.parse(bike_data_raw);
+
+        var map = L.map('map').setView([37.5665, 126.9780], 12);
+        
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+
+        // 핀 크기를 줄인 커스텀 아이콘 정의
+        var smallIcon = new L.Icon({
+            iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+            iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+            shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+            iconSize: [18, 29], // 크기 조절
+            iconAnchor: [9, 29], // 앵커 위치 조절
+            popupAnchor: [1, -24],
+            shadowSize: [29, 29]
+        });
+        
+        // 마커 클러스터 그룹 생성
+        var markers = L.markerClusterGroup();
+
+        // 'row'를 사용하여 데이터에 접근
+        if (bike_data && bike_data.hasOwnProperty('rentBikeStatus') && bike_data.rentBikeStatus.hasOwnProperty('row')) {
+            bike_data.rentBikeStatus.row.forEach(function(station) {
+                var stationName = station.stationName;
+                var latitude = parseFloat(station.stationLatitude);
+                var longitude = parseFloat(station.stationLongitude);
+                var bikeCount = station.parkingBikeTotCnt;
+
+                if (!isNaN(latitude) && !isNaN(longitude) && latitude !== 0 && longitude !== 0) {
+                    // 마커에 커스텀 아이콘 적용하고 클러스터 그룹에 추가
+                    var marker = L.marker([latitude, longitude], {icon: smallIcon})
+                        .bindPopup('<b>' + stationName + '</b><br>주차된 자전거 수: ' + bikeCount);
+                    markers.addLayer(marker);
+                } else {
+                    console.warn("위도/경도 정보가 유효하지 않아 마커를 추가할 수 없습니다:", station);
+                }
+            });
+            
+            // 마커 클러스터 그룹을 지도에 추가
+            map.addLayer(markers);
+        } else {
+            console.error("API 응답 구조가 예상과 다릅니다. 'rentBikeStatus.row' 경로를 확인하세요.");
+        }
+    </script>
+</body>
+</html>
